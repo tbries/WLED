@@ -426,7 +426,7 @@ WLED_GLOBAL bool gammaCorrectCol    _INIT(true);  // use gamma correction on col
 WLED_GLOBAL bool gammaCorrectBri    _INIT(false); // use gamma correction on brightness
 WLED_GLOBAL float gammaCorrectVal   _INIT(2.2f);  // gamma correction value
 
-WLED_GLOBAL byte colPri[] _INIT_N(({ 86, 211, 100, 0 }));  // current RGB(W) primary color. colPri[] should be updated if you want to change the color.
+WLED_GLOBAL byte colPri[] _INIT_N(({ 0, 100, 0, 0 }));  // current RGB(W) primary color. colPri[] should be updated if you want to change the color.
 WLED_GLOBAL byte colSec[] _INIT_N(({ 0, 0, 0, 0 }));      // current RGB(W) secondary color
 
 WLED_GLOBAL byte nightlightTargetBri _INIT(0);      // brightness after nightlight is over
@@ -641,11 +641,11 @@ WLED_GLOBAL byte colNlT[] _INIT_N(({ 0, 0, 0, 0 }));        // current nightligh
 // brightness
 WLED_GLOBAL unsigned long lastOnTime _INIT(0);
 WLED_GLOBAL bool offMode             _INIT(!turnOnAtBoot);
-WLED_GLOBAL byte briS                _INIT(128);           // default brightness
+WLED_GLOBAL byte briS                _INIT(255);           // default brightness
 WLED_GLOBAL byte bri                 _INIT(briS);          // global brightness (set)
 WLED_GLOBAL byte briOld              _INIT(0);             // global brightness while in transition loop (previous iteration)
 WLED_GLOBAL byte briT                _INIT(0);             // global brightness during transition
-WLED_GLOBAL byte briLast             _INIT(128);           // brightness before turned off. Used for toggle function
+WLED_GLOBAL byte briLast             _INIT(255);           // brightness before turned off. Used for toggle function
 WLED_GLOBAL byte whiteLast           _INIT(128);           // white channel before turned off. Used for toggle function in ir.cpp
 
 // button
