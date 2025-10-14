@@ -26,6 +26,45 @@ To flash an [ESP32](https://www.adafruit.com/product/6160) chip connected via US
 pio run -e esp32dev --target upload
 ```
 
+To list connected devices:
+```sh
+pio device list
+```
+
+Sample output:
+```
+...
+/dev/cu.usbserial-110
+---------------------
+Hardware ID: USB VID:PID=1A86:7523 LOCATION=1-1
+Description: USB Serial
+
+/dev/cu.usbserial-210
+---------------------
+Hardware ID: USB VID:PID=1A86:7523 LOCATION=2-1
+Description: USB Serial
+```
+
+To flash to a specific port, add the `--upload-port` flag:
+```sh
+pio run -e esp8266_2m --target upload --upload-port /dev/cu.usbserial-210
+```
+
+## Auto-Flash Script
+
+For demos with multiple devices, use the automated flashing script:
+```sh
+python3 auto_flash.py
+```
+
+This script:
+- Continuously monitors for new ESP8266/ESP32 devices
+- Automatically detects device type and uses the correct PlatformIO environment
+- Automatically flashes them with WLED firmware
+- Supports multiple devices flashing simultaneously
+- Reports success/failure and tells you when devices can be disconnected
+- Press Ctrl+C to stop
+
 ## Sample Images
 
 <div style="display: flex; gap: 10px; align-items: flex-start;">
