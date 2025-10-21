@@ -10,6 +10,12 @@ The script automatically detects device type and uses the appropriate PlatformIO
 - ESP8266 devices: uses 'esp8266_2m' environment
 - ESP32 devices: uses 'esp32dev' environment
 
+Features:
+- Automatic device detection and type identification
+- Clean flash: Erases flash memory before uploading (removes old settings)
+- Concurrent flashing of multiple devices
+- Real-time progress reporting
+
 Usage:
     python3 auto_flash.py
 
@@ -40,14 +46,16 @@ class Device:
 
 
 class WLEDAutoFlasher:
-    def __init__(self, scan_interval: float = 2.0):
+    def __init__(self, scan_interval: float = 2.0, erase_flash: bool = True):
         """
         Initialize the auto-flasher.
         
         Args:
             scan_interval: Time in seconds between device scans
+            erase_flash: Whether to erase flash memory before uploading (recommended for clean installs)
         """
         self.scan_interval = scan_interval
+        self.erase_flash = erase_flash
         self.processed_devices: Set[str] = set()
         self.active_flashes: Dict[str, threading.Thread] = {}
         self.flash_lock = threading.Lock()
@@ -61,6 +69,8 @@ class WLEDAutoFlasher:
         print("🚀 WLED Auto-Flasher for GitHub Universe '25")
         print("=" * 60)
         print("Monitoring for new ESP8266/ESP32 devices...")
+        if erase_flash:
+            print("🧹 Flash erase enabled - devices will be completely wiped before flashing")
         print("Press Ctrl+C to stop")
         print()
 
@@ -176,6 +186,7 @@ class WLEDAutoFlasher:
         # Common USB-to-serial chip vendor IDs used in ESP boards
         esp_vendor_ids = [
             "1A86:7523",  # CH340/CH341 (very common in ESP8266 boards)
+            "1A86:55D3",  # CH340 variant (USB Single Serial)
             "10C4:EA60",  # CP2102/CP2104 (Silicon Labs)
             "0403:6001",  # FTDI FT232
             "0403:6014",  # FTDI FT232H
@@ -189,7 +200,7 @@ class WLEDAutoFlasher:
         
         # Check description for common terms
         if description:
-            esp_terms = ["usb serial", "uart", "ch340", "cp210", "ftdi"]
+            esp_terms = ["usb serial", "uart", "ch340", "cp210", "ftdi", "usb single serial"]
             desc_lower = description.lower()
             for term in esp_terms:
                 if term in desc_lower:
@@ -233,7 +244,7 @@ class WLEDAutoFlasher:
             return "esp8266"
         
         # FTDI can be used for either, default to ESP32 as it's more common in newer boards
-        if "0403:" in hardware_lower:  # FTDI chips
+        if "0403:" in hardware_lower or "1a86:55d3" in hardware_lower:  # FTDI chips
             return "esp32"
         
         # Default fallback - could be made configurable
@@ -264,7 +275,31 @@ class WLEDAutoFlasher:
         print(f"   Description: {device.description}")
         
         try:
-            # Run the PlatformIO upload command
+            # Step 1: Optionally erase the flash memory to ensure clean state
+            if self.erase_flash:
+                print(f"🧹 [{datetime.now().strftime('%H:%M:%S')}] Erasing flash memory on {port}...")
+                erase_result = subprocess.run([
+                    "pio", "run", 
+                    "-e", environment, 
+                    "--target", "erase", 
+                    "--upload-port", port
+                ], 
+                capture_output=True, 
+                text=True, 
+                timeout=60  # 1 minute timeout for erase
+                )
+                
+                if erase_result.returncode != 0:
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    print(f"⚠️  [{timestamp}] WARNING: Flash erase failed for {port}")
+                    print(f"   Error: {erase_result.stderr}")
+                    print(f"   Continuing with upload anyway...")
+                else:
+                    print(f"✨ [{datetime.now().strftime('%H:%M:%S')}] Flash memory erased successfully on {port}")
+            
+            # Step 2: Upload the firmware
+            action = "Uploading" if not self.erase_flash else "Uploading fresh"
+            print(f"📤 [{datetime.now().strftime('%H:%M:%S')}] {action} firmware to {port}...")
             result = subprocess.run([
                 "pio", "run", 
                 "-e", environment, 
@@ -437,7 +472,9 @@ class WLEDAutoFlasher:
 
 def main():
     """Main entry point."""
-    flasher = WLEDAutoFlasher(scan_interval=2.0)
+    # Enable flash erase by default for clean installs
+    # Set erase_flash=False if you want to preserve existing settings
+    flasher = WLEDAutoFlasher(scan_interval=2.0, erase_flash=True)
     flasher.run()
 
 

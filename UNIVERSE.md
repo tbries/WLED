@@ -60,6 +60,7 @@ python3 auto_flash.py
 This script:
 - Continuously monitors for new ESP8266/ESP32 devices
 - Automatically detects device type and uses the correct PlatformIO environment
+- **Erases flash memory before flashing** to ensure clean installations (removes old settings)
 - Automatically flashes them with WLED firmware
 - Supports multiple devices flashing simultaneously
 - Reports success/failure and tells you when devices can be disconnected
