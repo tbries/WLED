@@ -30,6 +30,7 @@ import threading
 import time
 import re
 import sys
+import platform
 from datetime import datetime
 from typing import Set, Dict, Optional, List
 from dataclasses import dataclass
@@ -46,16 +47,18 @@ class Device:
 
 
 class WLEDAutoFlasher:
-    def __init__(self, scan_interval: float = 2.0, erase_flash: bool = True):
+    def __init__(self, scan_interval: float = 2.0, erase_flash: bool = True, enable_sounds: bool = True):
         """
         Initialize the auto-flasher.
         
         Args:
             scan_interval: Time in seconds between device scans
             erase_flash: Whether to erase flash memory before uploading (recommended for clean installs)
+            enable_sounds: Whether to play sounds for flash completion (success/failure)
         """
         self.scan_interval = scan_interval
         self.erase_flash = erase_flash
+        self.enable_sounds = enable_sounds
         self.processed_devices: Set[str] = set()
         self.active_flashes: Dict[str, threading.Thread] = {}
         self.flash_lock = threading.Lock()
@@ -71,8 +74,85 @@ class WLEDAutoFlasher:
         print("Monitoring for new ESP8266/ESP32 devices...")
         if erase_flash:
             print("🧹 Flash erase enabled - devices will be completely wiped before flashing")
+        if enable_sounds:
+            print("🔊 Sound notifications enabled")
         print("Press Ctrl+C to stop")
         print()
+
+    def _play_sound(self, sound_type: str):
+        """
+        Play a system sound for flash completion.
+        
+        Args:
+            sound_type: "success" for pleasant sound, "failure" for negative sound
+        """
+        if not self.enable_sounds:
+            return
+            
+        try:
+            system = platform.system().lower()
+            
+            if system == "darwin":  # macOS
+                if sound_type == "success":
+                    # Pleasant ding sound
+                    subprocess.run(["afplay", "/System/Library/Sounds/Glass.aiff"], 
+                                 capture_output=True, timeout=5)
+                else:  # failure
+                    # Negative beep sound
+                    subprocess.run(["afplay", "/System/Library/Sounds/Sosumi.aiff"], 
+                                 capture_output=True, timeout=5)
+                                 
+            elif system == "linux":
+                if sound_type == "success":
+                    # Try multiple methods for Linux sound
+                    try:
+                        # Method 1: paplay (PulseAudio)
+                        subprocess.run(["paplay", "/usr/share/sounds/alsa/Front_Left.wav"], 
+                                     capture_output=True, timeout=5)
+                    except (FileNotFoundError, subprocess.CalledProcessError):
+                        try:
+                            # Method 2: aplay (ALSA)
+                            subprocess.run(["aplay", "/usr/share/sounds/alsa/Front_Left.wav"], 
+                                         capture_output=True, timeout=5)
+                        except (FileNotFoundError, subprocess.CalledProcessError):
+                            # Method 3: speaker-test for a brief tone
+                            subprocess.run(["speaker-test", "-t", "sine", "-f", "800", "-l", "1"], 
+                                         capture_output=True, timeout=5)
+                else:  # failure
+                    try:
+                        # Method 1: paplay (PulseAudio)
+                        subprocess.run(["paplay", "/usr/share/sounds/alsa/Front_Right.wav"], 
+                                     capture_output=True, timeout=5)
+                    except (FileNotFoundError, subprocess.CalledProcessError):
+                        try:
+                            # Method 2: aplay (ALSA)
+                            subprocess.run(["aplay", "/usr/share/sounds/alsa/Front_Right.wav"], 
+                                         capture_output=True, timeout=5)
+                        except (FileNotFoundError, subprocess.CalledProcessError):
+                            # Method 3: speaker-test for a harsh tone
+                            subprocess.run(["speaker-test", "-t", "sine", "-f", "200", "-l", "1"], 
+                                         capture_output=True, timeout=5)
+                                         
+            elif system == "windows":
+                # Use Windows system sounds
+                try:
+                    import winsound
+                    if sound_type == "success":
+                        winsound.MessageBeep(winsound.MB_OK)  # Pleasant system sound
+                    else:  # failure
+                        winsound.MessageBeep(winsound.MB_ICONHAND)  # Error sound
+                except ImportError:
+                    # winsound not available, fallback to console bell
+                    print("\a", end="", flush=True)
+                    
+            else:
+                # Fallback: simple console bell
+                print("\a", end="", flush=True)
+                
+        except Exception as e:
+            # Sound failed, but don't let it break the main functionality
+            # Silently continue - sounds are just nice-to-have
+            pass
 
     def get_connected_devices(self) -> List[Device]:
         """
@@ -317,23 +397,27 @@ class WLEDAutoFlasher:
                 print(f"✅ [{timestamp}] SUCCESS: {port} flashed successfully!")
                 print(f"🔌 Device on {port} can now be disconnected")
                 print()
+                self._play_sound("success")
                 return True
             else:
                 print(f"❌ [{timestamp}] FAILED: {port} flash failed")
                 print(f"   Error: {result.stderr}")
                 print()
+                self._play_sound("failure")
                 return False
                 
         except subprocess.TimeoutExpired:
             timestamp = datetime.now().strftime("%H:%M:%S")
             print(f"⏰ [{timestamp}] TIMEOUT: {port} flash timed out (5 minutes)")
             print()
+            self._play_sound("failure")
             return False
             
         except Exception as e:
             timestamp = datetime.now().strftime("%H:%M:%S")
             print(f"❌ [{timestamp}] ERROR: {port} flash error: {e}")
             print()
+            self._play_sound("failure")
             return False
 
     def flash_device_thread(self, device: Device):
@@ -474,7 +558,8 @@ def main():
     """Main entry point."""
     # Enable flash erase by default for clean installs
     # Set erase_flash=False if you want to preserve existing settings
-    flasher = WLEDAutoFlasher(scan_interval=2.0, erase_flash=True)
+    # Set enable_sounds=False if you want to disable sound notifications
+    flasher = WLEDAutoFlasher(scan_interval=2.0, erase_flash=True, enable_sounds=True)
     flasher.run()
 
 
