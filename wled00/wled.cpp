@@ -691,11 +691,11 @@ void WLED::beginStrip()
     applyPreset(bootPreset, CALL_MODE_INIT);
   }
   else {
-    // set color to warm welcoming orange (aka DEFAULT_COLOR) if no preset loaded (will fade to this color once turned on)
-    colPri[0] = R(DEFAULT_COLOR);
-    colPri[1] = G(DEFAULT_COLOR);
-    colPri[2] = B(DEFAULT_COLOR);
-    colPri[3] = W(DEFAULT_COLOR);
+    // set the configured boot color if no preset loaded (will fade to this color once turned on)
+    colPri[0] = R(WLED_DEFAULT_BOOT_COLOR);
+    colPri[1] = G(WLED_DEFAULT_BOOT_COLOR);
+    colPri[2] = B(WLED_DEFAULT_BOOT_COLOR);
+    colPri[3] = W(WLED_DEFAULT_BOOT_COLOR);
   }
 
   strip.setTransition(transitionDelayDefault);  // restore default transition time
