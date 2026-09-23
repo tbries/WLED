@@ -12,6 +12,16 @@
 
 #define FS_BUFSIZE 256
 
+// Filesystem usage stats, refreshed by updateFSInfo() - previously WLED_GLOBAL,
+// a leftover from when all state lived in one big extern block regardless of
+// who used it. json.cpp only ever reads these (status report), so it gets
+// by-value getters rather than a mutable reference - an accidental write from
+// outside this file is now a build error instead of a silent bug.
+static size_t fsBytesUsed = 0;
+static size_t fsBytesTotal = 0;
+size_t getFsBytesUsed()  { return fsBytesUsed;  }
+size_t getFsBytesTotal() { return fsBytesTotal; }
+
 /*
  * Structural requirements for files managed by writeObjectToFile() and readObjectFromFile() utilities:
  * 1. File must be a string representation of a valid JSON object
@@ -38,7 +48,7 @@ void closeFile() {
     DEBUGFS_PRINT(F("Close -> "));
     uint32_t s = millis();
   #endif
-  f.close();
+  f.close(); // "if (f)" check is aleady done inside f.close(), and f cannot be nullptr -> no need for double checking before closing the file handle.
   DEBUGFS_PRINTF("took %lu ms\n", millis() - s);
   doCloseFile = false;
 }
@@ -188,6 +198,7 @@ static bool appendObjectToFile(const char* key, const JsonDocument* content, uin
   if (f.size() < 3) {
     char init[10];
     strcpy_P(init, PSTR("{\"0\":{}}"));
+    f.seek(0, SeekSet);           // rewind to ensure we overwrite from the start, instead of appending
     f.print(init);
   }
 
@@ -270,6 +281,8 @@ bool writeObjectToFile(const char* file, const char* key, const JsonDocument* co
     serializeJson(*content, Serial); DEBUGFS_PRINTLN();
     s = millis();
   #endif
+
+  if (doCloseFile) closeFile(); // This prevents the loss of file data that is still cached in the File object.
 
   size_t pos = 0;
   char fileName[129]; strncpy_P(fileName, file, 128); fileName[128] = 0; //use PROGMEM safe copy as FS.open() does not
@@ -394,6 +407,7 @@ static const uint8_t *getPresetCache(size_t &size) {
     if (presetsCached) {
       p_free(presetsCached);
       presetsCached = nullptr;
+      presetsCachedSize = 0;
     }
   }
 
@@ -555,6 +569,12 @@ bool restoreFile(const char* filename) {
   }
   DEBUG_PRINTLN(F("restore failed"));
   return false;
+}
+
+bool checkBackupExists(const char* filename) {
+  char backupname[32];
+  snprintf_P(backupname, sizeof(backupname), s_backup_fmt, filename + 1); // skip leading '/' in filename
+  return WLED_FS.exists(backupname);
 }
 
 bool validateJsonFile(const char* filename) {
